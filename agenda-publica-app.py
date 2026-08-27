@@ -59,7 +59,7 @@ with st.sidebar:
     st.markdown("---")
 
     if st.session_state['usuario'] is None:
-        tab_login, tab_criar = st.tabs(["Login", "Criar Conta"])
+        tab_login, tab_criar, tab_recuperar = st.tabs(["Login", "Criar Conta", "Recuperar Senha"])
 
         with tab_login:
             st.subheader("Acesso RBAC")
@@ -85,11 +85,35 @@ with st.sidebar:
             c_senha = st.text_input("Senha", type="password", key="c_senha")
             c_perfil = st.selectbox("Perfil", ["Gestor Público", "Analista KDD", "Admin Domínio"])
             if st.button("Cadastrar"):
-                conn = get_db_connection()
-                conn.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES (?, ?, ?)", (c_nome, c_senha, c_perfil))
-                conn.commit()
-                conn.close()
-                st.success("Criado! Faça login.")
+                if c_nome and c_senha:
+                    conn = get_db_connection()
+                    existe = conn.execute("SELECT id FROM usuarios WHERE nome = ?", (c_nome,)).fetchone()
+                    if existe:
+                        st.error("Nome de usuário já existe. Tente outro.")
+                    else:
+                        conn.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES (?, ?, ?)", (c_nome, c_senha, c_perfil))
+                        conn.commit()
+                        st.success("Criado! Faça login.")
+                    conn.close()
+                else:
+                    st.warning("Preencha todos os campos.")
+
+        with tab_recuperar:
+            st.subheader("Recuperar Senha")
+            r_nome = st.text_input("Nome de Usuário", key="recuperar_nome")
+            if st.button("Buscar Senha"):
+                if r_nome:
+                    conn = get_db_connection()
+                    user = conn.execute("SELECT senha, perfil FROM usuarios WHERE nome = ?", (r_nome,)).fetchone()
+                    conn.close()
+                    if user:
+                        st.info(f"🔑 Sua senha é: **{user['senha']}**")
+                        st.caption(f"Perfil: {user['perfil']}")
+                        registrar_log(r_nome, "RECUPERAÇÃO", "RECUPERAR_SENHA", "usuarios")
+                    else:
+                        st.error("Usuário não encontrado.")
+                else:
+                    st.warning("Informe o nome de usuário.")
     else:
         st.write(f"👤 **{st.session_state['usuario']}**")
         st.write(f"🔒 Perfil: *{st.session_state['perfil']}*")
