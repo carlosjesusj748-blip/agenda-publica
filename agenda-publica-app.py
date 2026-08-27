@@ -146,6 +146,58 @@ if perfil == 'Gestor Público':
         st.metric("Nível de Risco da Região", nivel_risco)
         st.info(f"**Ação Recomendada:** {recomendacao}")
 
+    st.markdown("---")
+    st.header("3. Copiloto IA (Conselheiro Especialista)")
+    
+    api_key = st.sidebar.text_input("🔑 Groq API Key", type="password", help="Insira sua chave da API Groq para habilitar a Inteligência Artificial (Modelo Llama3).")
+    
+    if api_key:
+        try:
+            from groq import Groq
+            client = Groq(api_key=api_key)
+            
+            st.info(f"💡 O Copiloto tem acesso ao contexto da **{escola_data['nome_escola']}** e aos seus níveis de Risco ({nivel_risco}).")
+            
+            # Inicializa o histórico de mensagens da sessão
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+                
+            # Exibe mensagens antigas
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+                    
+            # Input do usuário
+            if prompt := st.chat_input("Ex: 'Com base na taxa de evasão dessa escola, qual seria uma boa política pedagógica?'"):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                    
+                with st.chat_message("assistant"):
+                    message_placeholder = st.empty()
+                    
+                    # RAG Simplificado: Injeção do contexto da escola no System Prompt
+                    sys_prompt = f"Você é um conselheiro de políticas públicas do Governo da Bahia. O gestor está analisando a seguinte escola: Nome: {escola_data['nome_escola']}, Bairro: {escola_data['bairro']}, Evasão Escolar: {escola_data['taxa_evasao']}%, Nota IDEB: {escola_data['ideb']}, Ocorrências Criminais (CVLI/Furtos num raio de 500m): {escola_data['ocorrencias_entorno']}. O SAD classificou o risco como: {nivel_risco}. Responda as dúvidas do gestor baseado nesses dados de forma concisa e analítica."
+                    
+                    messages_for_api = [{"role": "system", "content": sys_prompt}]
+                    for m in st.session_state.messages:
+                        messages_for_api.append(m)
+                        
+                    try:
+                        response = client.chat.completions.create(
+                            model="llama3-8b-8192",
+                            messages=messages_for_api,
+                        )
+                        full_response = response.choices[0].message.content
+                        message_placeholder.markdown(full_response)
+                        st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    except Exception as e:
+                        st.error(f"Erro de conexão com a API da Groq: {e}")
+        except ImportError:
+            st.error("A biblioteca 'groq' não está instalada. Execute 'pip install groq'.")
+    else:
+        st.warning("👈 Insira sua Chave de API Groq na barra lateral para habilitar o Copiloto IA (Llama 3).")
+
 # ------------------------------------------------------------------------------
 # PERFIL: ANALISTA KDD (Data Mining)
 # ------------------------------------------------------------------------------
