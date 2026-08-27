@@ -7,13 +7,18 @@ from sklearn.linear_model import LinearRegression
 import sqlite3
 import database
 import time
+import os
+
+# Caminho absoluto para o banco de dados
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "sad_eduseg.db")
 
 # Garante que o banco de dados existe e tem os cadastros iniciais
 database.init_db()
 
 # Função para conectar ao banco
 def get_db_connection():
-    conn = sqlite3.connect('sad_eduseg.db')
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 

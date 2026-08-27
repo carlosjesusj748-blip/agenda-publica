@@ -2,7 +2,9 @@ import sqlite3
 import pandas as pd
 import os
 
-DB_NAME = "sad_eduseg.db"
+# Caminho absoluto para evitar problemas no Streamlit Cloud
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = os.path.join(BASE_DIR, "sad_eduseg.db")
 
 def init_db():
     print("[DB] Inicializando o Banco de Dados Cadastral do SAD-EduSeg...")
