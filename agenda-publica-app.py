@@ -42,7 +42,7 @@ def registrar_log(usuario, orgao, acao, tabela):
         pass
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CONFIGURAÇÃO DA PÁGINA & ESTILO
+# CONFIGURAÇÃO DA PÁGINA & ESTILO POWER BI / SAAS PREMIUM
 # ──────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="SAD-EduSeg | Governo da Bahia",
@@ -54,38 +54,56 @@ st.set_page_config(
 st.markdown("""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
     
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
     
-    .stApp { background-color: #f8fafc; }
+    .stApp { background-color: #f1f5f9; }
     
-    /* KPI Cards */
+    /* Top Header Bar */
+    .top-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        padding: 1.25rem 1.75rem;
+        border-radius: 1rem;
+        color: white;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    
+    /* KPI Cards estilo Power BI */
+    .kpi-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
     .metric-card {
         background: #ffffff;
         border-radius: 1rem;
         padding: 1.25rem 1.5rem;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -2px rgba(0,0,0,0.02);
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03), 0 2px 4px -2px rgba(0,0,0,0.02);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1rem;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .metric-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
     }
     .metric-card.blue { border-left: 5px solid #2563eb; }
     .metric-card.orange { border-left: 5px solid #ea580c; }
     .metric-card.red { border-left: 5px solid #dc2626; }
     .metric-card.emerald { border-left: 5px solid #059669; }
     
-    .metric-info h4 { margin: 0; font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .metric-info h2 { margin: 0.25rem 0 0 0; font-size: 1.85rem; color: #0f172a; font-weight: 800; }
+    .metric-info h4 { margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-info h2 { margin: 0.25rem 0 0 0; font-size: 1.85rem; color: #0f172a; font-weight: 900; }
     
     .metric-icon {
         width: 3.2rem; height: 3.2rem;
@@ -98,11 +116,30 @@ st.markdown("""
     .metric-icon.red { background-color: #fef2f2; color: #dc2626; }
     .metric-icon.emerald { background-color: #ecfdf5; color: #059669; }
 
+    /* Painel Box */
+    .panel-box {
+        background: #ffffff;
+        border-radius: 1rem;
+        border: 1px solid #e2e8f0;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        margin-bottom: 1.5rem;
+    }
+    .panel-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
     /* Simulador Container */
     .sim-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         color: white;
-        padding: 1.1rem 1.5rem;
+        padding: 1rem 1.5rem;
         border-top-left-radius: 1rem;
         border-top-right-radius: 1rem;
         font-weight: 700;
@@ -110,7 +147,7 @@ st.markdown("""
     }
     
     .blend-box {
-        padding: 1.5rem;
+        padding: 1.25rem 1.5rem;
         border-radius: 1rem;
         color: white;
         text-align: left;
@@ -129,17 +166,6 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
     .teoria-card h3 { color: #1e40af; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.6rem; font-size: 1.15rem; font-weight: 700; }
-    
-    .badge-prio {
-        padding: 4px 10px;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-    .badge-alta { background-color: #fee2e2; color: #dc2626; }
-    .badge-media { background-color: #ffedd5; color: #ea580c; }
-    .badge-baixa { background-color: #d1fae5; color: #059669; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -312,8 +338,15 @@ iac = round((total_risco_evasao / total_alunos) * 100, 1) if total_alunos > 0 el
 total_crimes_500m = int(df_escolas['crimes_500m'].sum())
 escolas_criticas = len(df_escolas[df_escolas['ivs'] > 0.6])
 
+# Cálculo de Score e Prioridade em df_escolas
+df_escolas['score_risco'] = (df_escolas['crimes_500m'] * 0.4) + (df_escolas['alunos_risco_evasao'] * 1.5) + (df_escolas['ivs'] * 100)
+df_escolas['nivel_prioridade'] = pd.cut(
+    df_escolas['score_risco'],
+    bins=[-np.inf, 120, 180, np.inf],
+    labels=['Baixo Risco', 'Médio Risco', 'Crítico']
+)
+
 def sanitizar_texto_pdf(txt: str) -> str:
-    """Remove caracteres especiais e acentuação para evitar quebra no FPDF standard."""
     if not txt:
         return ""
     nfkd = unicodedata.normalize('NFKD', str(txt))
@@ -325,14 +358,12 @@ def gerar_pdf_relatorio(escola, ivs, crimes, evasao, score, rec_titulo, rec_text
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Cabeçalho
         pdf.set_font("Helvetica", "B", 16)
         pdf.cell(w=0, h=10, text="SAD-EduSeg - Relatorio Oficial de Decisao", ln=True, align="C")
         pdf.set_font("Helvetica", "I", 10)
         pdf.cell(w=0, h=6, text=f"Governo do Estado da Bahia | Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
         pdf.ln(8)
         
-        # Seção 1: Diagnóstico
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(w=0, h=8, text=f"1. Unidade Escolar: {sanitizar_texto_pdf(escola)}", ln=True)
         pdf.set_font("Helvetica", "", 10)
@@ -342,7 +373,6 @@ def gerar_pdf_relatorio(escola, ivs, crimes, evasao, score, rec_titulo, rec_text
         pdf.cell(w=0, h=6, text=f"- Score Integrado de Risco (KDD): {score:.0f} pts", ln=True)
         pdf.ln(6)
         
-        # Seção 2: Recomendação
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(w=0, h=8, text="2. Diretriz Estrategica Recomendada (Blend de Opcoes):", ln=True)
         pdf.set_font("Helvetica", "B", 11)
@@ -351,13 +381,11 @@ def gerar_pdf_relatorio(escola, ivs, crimes, evasao, score, rec_titulo, rec_text
         pdf.multi_cell(w=0, h=6, text=sanitizar_texto_pdf(rec_texto))
         pdf.ln(8)
         
-        # Rodapé de Governança
         pdf.set_font("Helvetica", "I", 8)
         pdf.cell(w=0, h=6, text="Documento gerado em conformidade com as diretrizes de governanca de dados abertos e LGPD.", ln=True, align="C")
         
         return bytes(pdf.output())
-    except Exception as e:
-        # Fallback de segurança para nunca crashar a UI
+    except Exception:
         pdf_fallback = FPDF()
         pdf_fallback.add_page()
         pdf_fallback.set_font("Helvetica", size=12)
@@ -402,152 +430,163 @@ def treinar_modelo_rf_convivencia():
 # PERFIL: GESTOR PÚBLICO
 # ==============================================================================
 if perfil == 'Gestor Público':
+    # Barra de Título Executiva
     st.markdown("""
-    <div>
-        <h2 style="font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: 2px;">Painel Executivo Integrado</h2>
-        <p style="color: #64748b; font-weight: 500; margin-bottom: 1.5rem;">Função Analítica Principal: <span style="background:#eff6ff; color:#2563eb; padding: 3px 8px; border-radius: 6px; font-weight: 700;">Sumarização & Alocação de Recursos</span></p>
+    <div class="top-header">
+        <div>
+            <h2 style="margin:0; font-size: 1.75rem; font-weight: 900; letter-spacing: -0.5px;">Painel Executivo de Apoio à Decisão</h2>
+            <p style="margin: 0.2rem 0 0 0; color: #94a3b8; font-size: 0.9rem;">Integração Territorial Secretaria da Segurança Pública (SSP) & Secretaria da Educação (SEC) · Salvador/BA</p>
+        </div>
+        <div style="text-align: right;">
+            <span style="background: #2563eb; color: white; padding: 6px 14px; border-radius: 9999px; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase;">
+                <i class="fas fa-signal"></i> Online · Monitoramento Ativo
+            </span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    tab_dash, tab_prio, tab_clima, tab_ia, tab_teoria = st.tabs([
-        "📊 Painel & Simulador", "🎯 Matriz de Priorização", "🛡️ Clima & Convivência (IA)", "🤖 Copiloto IA", "📖 Base Teórica"
+    tab_exec, tab_prio, tab_clima, tab_ia, tab_teoria = st.tabs([
+        "🗺️ Visão Executiva & Mapa", "🎯 Matriz de Priorização", "🛡️ Clima & Convivência (IA)", "🤖 Copiloto IA", "📖 Base Teórica"
     ])
 
-    # ── ABA 1: DASHBOARD E SIMULADOR ──
-    with tab_dash:
-        # Cards de KPI
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.markdown(f"""
+    # ── ABA 1: VISÃO EXECUTIVA & MAPA GEOESPACIAL (POWER BI STYLE) ──
+    with tab_exec:
+        # 4 KPI Cards
+        st.markdown(f"""
+        <div class="kpi-container">
             <div class="metric-card blue">
                 <div class="metric-info"><h4>Alunos Monitorados</h4><h2>{total_alunos:,}</h2></div>
                 <div class="metric-icon blue"><i class="fas fa-users"></i></div>
-            </div>""", unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"""
+            </div>
             <div class="metric-card orange">
-                <div class="metric-info"><h4>IAC (Risco Evasão)</h4><h2>{iac}%</h2></div>
+                <div class="metric-info"><h4>Índice Evasão (IAC)</h4><h2>{iac}%</h2></div>
                 <div class="metric-icon orange"><i class="fas fa-graduation-cap"></i></div>
-            </div>""", unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"""
+            </div>
             <div class="metric-card red">
-                <div class="metric-info"><h4>Crimes (Raio 500m)</h4><h2>{total_crimes_500m:,}</h2></div>
+                <div class="metric-info"><h4>Crimes no Entorno</h4><h2>{total_crimes_500m:,}</h2></div>
                 <div class="metric-icon red"><i class="fas fa-shield-halved"></i></div>
-            </div>""", unsafe_allow_html=True)
-        with c4:
-            st.markdown(f"""
+            </div>
             <div class="metric-card emerald">
-                <div class="metric-info"><h4>Escolas Prioritárias</h4><h2>{escolas_criticas}</h2></div>
+                <div class="metric-info"><h4>Escolas Críticas</h4><h2>{escolas_criticas}</h2></div>
                 <div class="metric-icon emerald"><i class="fas fa-school-flag"></i></div>
-            </div>""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Módulo do Simulador
-        st.markdown("""
-        <div style="background: white; border-radius: 1rem; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 1.5rem;">
-            <div class="sim-header">
-                <div><i class="fas fa-sliders" style="color: #60a5fa; margin-right: 8px;"></i> <strong>Motor de Inferência: Simulador de Intervenções (Blend de Opções)</strong></div>
-                <span style="background: #2563eb; font-size: 0.75rem; padding: 3px 10px; border-radius: 9999px; font-weight: 700;">Decisão Preditiva</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        col_sim_l, col_sim_r = st.columns([5, 7])
-        
-        with col_sim_l:
-            st.markdown("**1. Selecionar Unidade Escolar**")
-            escola_sel = st.selectbox("Escola Alvo", df_escolas['nome_escola'], label_visibility="collapsed")
+
+        # Filtros Rápidos
+        col_filtro1, col_filtro2 = st.columns([6, 6])
+        with col_filtro1:
+            filtro_bairro = st.multiselect("Filtrar Regiões de Salvador:", options=list(df_escolas['bairro'].unique()), default=list(df_escolas['bairro'].unique()))
+        with col_filtro2:
+            filtro_risco = st.multiselect("Filtrar Nível de Risco:", options=['Crítico', 'Médio Risco', 'Baixo Risco'], default=['Crítico', 'Médio Risco', 'Baixo Risco'])
+            
+        df_filtrado = df_escolas[(df_escolas['bairro'].isin(filtro_bairro)) & (df_escolas['nivel_prioridade'].isin(filtro_risco))]
+        if df_filtrado.empty:
+            df_filtrado = df_escolas
+
+        # Grid Principal: Mapa à Esquerda, Simulador à Direita
+        col_mapa, col_sim = st.columns([7, 5])
+
+        with col_mapa:
+            st.markdown("#### 🗺️ Mapa Geoespacial: Escolas & Manchas Criminais (Salvador/BA)")
+            
+            # Mapa Plotly Mapbox com OpenStreetMap
+            fig_mapa = px.scatter_mapbox(
+                df_filtrado,
+                lat='latitude',
+                lon='longitude',
+                color='nivel_prioridade',
+                size='crimes_500m',
+                hover_name='nome_escola',
+                hover_data={'bairro': True, 'ivs': ':.2f', 'crimes_500m': True, 'alunos_risco_evasao': True, 'total_alunos_ativos': True, 'latitude': False, 'longitude': False},
+                color_discrete_map={'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'},
+                size_max=28,
+                zoom=11,
+                center=dict(lat=-12.9714, lon=-38.5014),
+                mapbox_style="open-street-map"
+            )
+            fig_mapa.update_layout(
+                height=480,
+                margin=dict(l=0, r=0, t=0, b=0),
+                legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.02, bgcolor="rgba(255, 255, 255, 0.85)")
+            )
+            st.plotly_chart(fig_mapa, use_container_width=True)
+            st.caption("🔴 Crítico: IVS e Crimes elevados · 🟠 Médio Risco · 🟢 Baixo Risco. Tamanho do ponto = Volume de crimes no raio de 500m.")
+
+        with col_sim:
+            st.markdown("#### ⚙️ Motor de Inferência (Simulador de Políticas)")
+            
+            escola_sel = st.selectbox("Selecione a Escola Alvo para Intervenção:", df_escolas['nome_escola'])
             esc = df_escolas[df_escolas['nome_escola'] == escola_sel].iloc[0]
+            
+            orc_ssp = st.slider("Policiamento Preventivo e COI (SSP - R$ Milhões)", 0.0, 10.0, 3.5, 0.5)
+            orc_sec = st.slider("Apoio Pedagógico e Tempo Integral (SEC - R$ Milhões)", 0.0, 10.0, 4.0, 0.5)
 
-            st.markdown("<div style='background:#eff6ff; padding:1.2rem; border-radius:1rem; border:1px solid #bfdbfe; margin-top:1rem;'>", unsafe_allow_html=True)
-            st.markdown("<strong style='color:#1e3a8a;'><i class='fas fa-sack-dollar'></i> 2. Alocação Orçamentária Simulada (R$ Milhões)</strong>", unsafe_allow_html=True)
-            orc_ssp = st.slider("Policiamento Preventivo e COI (SSP)", 0.0, 10.0, 3.5, 0.5)
-            orc_sec = st.slider("Apoio Pedagógico e Tempo Integral (SEC)", 0.0, 10.0, 4.0, 0.5)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_sim_r:
             score = (esc['crimes_500m'] * 0.4) + (esc['alunos_risco_evasao'] * 1.5) + (esc['ivs'] * 100)
             
-            # Gauge Interativo do Score de Risco
+            # Gauge Interativo
             fig_gauge = go.Figure(go.Indicator(
                 mode = "gauge+number",
                 value = score,
                 domain = {'x': [0, 1], 'y': [0, 1]},
-                title = {'text': f"Score de Risco Integrado: {escola_sel[:25]}...", 'font': {'size': 14, 'color': '#1e293b'}},
+                title = {'text': f"Score de Risco: {escola_sel[:20]}...", 'font': {'size': 13}},
                 gauge = {
-                    'axis': {'range': [None, 300], 'tickwidth': 1, 'tickcolor': "#94a3b8"},
-                    'bar': {'color': "#1e293b"},
-                    'bgcolor': "white",
-                    'borderwidth': 2,
-                    'bordercolor': "#e2e8f0",
+                    'axis': {'range': [None, 300], 'tickwidth': 1},
+                    'bar': {'color': "#0f172a"},
                     'steps': [
-                        {'range': [0, 100], 'color': '#d1fae5'},
-                        {'range': [100, 180], 'color': '#ffedd5'},
+                        {'range': [0, 120], 'color': '#d1fae5'},
+                        {'range': [120, 180], 'color': '#ffedd5'},
                         {'range': [180, 300], 'color': '#fee2e2'}
-                    ],
-                    'threshold': {
-                        'line': {'color': "red", 'width': 4},
-                        'thickness': 0.75,
-                        'value': 200
-                    }
+                    ]
                 }
             ))
-            fig_gauge.update_layout(height=200, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)')
+            fig_gauge.update_layout(height=160, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True)
 
-            # Lógica do Blend de Decisão
+            # Recomendação de Blend
             if score > 150:
                 if orc_ssp > orc_sec:
-                    rt = "Blend A: Intervenção Ostensiva e Segurança Perimetral"
-                    rx = f"Risco elevado ({score:.0f} pts). Como a alocação para a SSP (R$ {orc_ssp}M) é prioritária, recomenda-se Base Móvel da PM no portão e ampliação das câmeras do COI. A redução da sensação de medo viabiliza o retorno seguro dos alunos."
+                    rt = "Blend A: Intervenção Ostensiva e Perimetral"
+                    rx = f"Risco elevado ({score:.0f} pts). Como a alocação para a SSP (R$ {orc_ssp}M) é prioritária, recomenda-se Base Móvel da PM no portão e ampliação das câmeras do COI. A sensação de segurança desbloqueia a frequência."
                     st.markdown(f"""
                     <div class="blend-box blend-critico">
-                        <div style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;"><i class="fas fa-triangle-exclamation"></i> Diretriz de Alta Prioridade</div>
-                        <h3 style="margin: 0.25rem 0 0.5rem 0; font-size: 1.35rem; font-weight: 800;">{rt}</h3>
-                        <p style="margin: 0; font-size: 0.9rem; line-height: 1.5; color: #fee2e2;">{rx}</p>
+                        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase;"><i class="fas fa-triangle-exclamation"></i> Diretriz Prioritária</div>
+                        <h4 style="margin: 0.2rem 0 0.4rem 0; font-weight: 800;">{rt}</h4>
+                        <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: #fee2e2;">{rx}</p>
                     </div>""", unsafe_allow_html=True)
                 else:
-                    rt = "Blend B: Blindagem Social e Permanência Estudantil"
-                    rx = f"Risco elevado ({score:.0f} pts). Com o orçamento direcionado à SEC (R$ {orc_sec}M), a prioridade é a conversão para Tempo Integral imediato, ampliação do Bolsa Presença e atividades de contraturno para conter a atratividade do crime na região."
+                    rt = "Blend B: Blindagem Social e Permanência"
+                    rx = f"Risco elevado ({score:.0f} pts). Com orçamento SEC prioritário (R$ {orc_sec}M), a diretriz é conversão imediata para Tempo Integral e Bolsa Presença para blindar o jovem contra o crime local."
                     st.markdown(f"""
                     <div class="blend-box blend-moderado">
-                        <div style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;"><i class="fas fa-triangle-exclamation"></i> Diretriz Pedagógica Prioritária</div>
-                        <h3 style="margin: 0.25rem 0 0.5rem 0; font-size: 1.35rem; font-weight: 800;">{rt}</h3>
-                        <p style="margin: 0; font-size: 0.9rem; line-height: 1.5; color: #fff7ed;">{rx}</p>
+                        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase;"><i class="fas fa-triangle-exclamation"></i> Diretriz Pedagógica</div>
+                        <h4 style="margin: 0.2rem 0 0.4rem 0; font-weight: 800;">{rt}</h4>
+                        <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: #fff7ed;">{rx}</p>
                     </div>""", unsafe_allow_html=True)
             else:
-                rt = "Blend C: Manutenção Preventiva e Policiamento Comunitário"
-                rx = f"Risco sob controle ({score:.0f} pts). Manter patrulhamento escolar padrão da PM e acompanhamento contínuo da frequência pela SEC. Recursos podem ser realocados para regiões de maior vulnerabilidade."
+                rt = "Blend C: Manutenção Preventiva e Comunitária"
+                rx = f"Risco controlado ({score:.0f} pts). Manter patrulha escolar padrão e monitoramento rotineiro da SEC. Recursos excedentes devem ser realocados para regiões com maior IVS."
                 st.markdown(f"""
                 <div class="blend-box blend-estavel">
-                    <div style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;"><i class="fas fa-circle-check"></i> Ação Preventiva</div>
-                    <h3 style="margin: 0.25rem 0 0.5rem 0; font-size: 1.35rem; font-weight: 800;">{rt}</h3>
-                    <p style="margin: 0; font-size: 0.9rem; line-height: 1.5; color: #ecfdf5;">{rx}</p>
+                    <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase;"><i class="fas fa-circle-check"></i> Ação Preventiva</div>
+                    <h4 style="margin: 0.2rem 0 0.4rem 0; font-weight: 800;">{rt}</h4>
+                    <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: #ecfdf5;">{rx}</p>
                 </div>""", unsafe_allow_html=True)
-                
+
             st.markdown("<br>", unsafe_allow_html=True)
             pdf_bytes = gerar_pdf_relatorio(escola_sel, esc['ivs'], esc['crimes_500m'], esc['alunos_risco_evasao'], score, rt, rx)
-            st.download_button(label="📄 Exportar Relatório Oficial em PDF", data=pdf_bytes, file_name=f"Relatorio_SAD_{escola_sel[:12].replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button(label="📄 Exportar Relatório Oficial (PDF)", data=pdf_bytes, file_name=f"Relatorio_{escola_sel[:10].replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True)
 
     # ── ABA 2: MATRIZ DE PRIORIZAÇÃO DE INVESTIMENTOS ──
     with tab_prio:
         st.markdown("""
         <div>
             <h3 style="margin:0; font-size:1.35rem; color:#0f172a; font-weight:800;">Matriz de Priorização Estratégica de Investimentos</h3>
-            <p style="color:#64748b; font-size:0.9rem;">Cruzamento multicritério para decisão orçamentária entre todas as unidades da rede.</p>
+            <p style="color:#64748b; font-size:0.9rem;">Cruzamento multicritério para decisão orçamentária entre todas as unidades da rede estadual.</p>
         </div>
         """, unsafe_allow_html=True)
         
-        df_prio = df_escolas.copy()
-        df_prio['score_total'] = (df_prio['crimes_500m'] * 0.4) + (df_prio['alunos_risco_evasao'] * 1.5) + (df_prio['ivs'] * 100)
-        df_prio['nivel_prioridade'] = pd.cut(
-            df_prio['score_total'],
-            bins=[-np.inf, 120, 180, np.inf],
-            labels=['Baixa (Preventiva)', 'Média (Atenção)', 'Alta (Urgente)']
-        )
-        df_prio = df_prio.sort_values(by='score_total', ascending=False).reset_index(drop=True)
+        df_prio = df_escolas.sort_values(by='score_risco', ascending=False).reset_index(drop=True)
 
         col_p1, col_p2 = st.columns([7, 5])
         
@@ -556,11 +595,11 @@ if perfil == 'Gestor Público':
                 df_prio,
                 x='crimes_500m',
                 y='alunos_risco_evasao',
-                size='score_total',
+                size='score_risco',
                 color='nivel_prioridade',
                 hover_name='nome_escola',
-                hover_data={'bairro': True, 'ivs': ':.2f', 'score_total': ':.0f'},
-                color_discrete_map={'Alta (Urgente)': '#dc2626', 'Média (Atenção)': '#ea580c', 'Baixa (Preventiva)': '#059669'},
+                hover_data={'bairro': True, 'ivs': ':.2f', 'score_risco': ':.0f'},
+                color_discrete_map={'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'},
                 title="Matriz de Decisão: Volume de Crimes vs Risco de Evasão",
                 labels={'crimes_500m': 'Crimes no Entorno (500m)', 'alunos_risco_evasao': 'Alunos em Risco de Evasão'}
             )
@@ -569,7 +608,7 @@ if perfil == 'Gestor Público':
             
         with col_p2:
             st.markdown("#### Ranking de Alocação Prioritária")
-            tabela_apresentacao = df_prio[['nome_escola', 'bairro', 'score_total', 'nivel_prioridade']].copy()
+            tabela_apresentacao = df_prio[['nome_escola', 'bairro', 'score_risco', 'nivel_prioridade']].copy()
             tabela_apresentacao.columns = ['Escola', 'Bairro', 'Score', 'Prioridade']
             tabela_apresentacao['Score'] = tabela_apresentacao['Score'].round(0).astype(int)
             st.dataframe(tabela_apresentacao, use_container_width=True, hide_index=True)
