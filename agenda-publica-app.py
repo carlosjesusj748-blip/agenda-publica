@@ -37,21 +37,62 @@ with st.sidebar:
     st.markdown("---")
     
     if st.session_state['usuario'] is None:
-        st.subheader("Login de Acesso")
-        nome_input = st.text_input("Usuário (Ex: Decisor MTE, Data Analyst, Admin Dominio)")
-        senha_input = st.text_input("Senha (Ex: 123, admin)", type="password")
+        tab_login, tab_criar, tab_recuperar = st.tabs(["Login", "Criar Conta", "Recuperar Senha"])
         
-        if st.button("Acessar o Sistema"):
-            conn = get_db_connection()
-            user = conn.execute("SELECT * FROM usuarios WHERE nome = ? AND senha = ?", (nome_input, senha_input)).fetchone()
-            conn.close()
+        with tab_login:
+            st.subheader("Login de Acesso")
+            nome_input = st.text_input("Usuário (Ex: Decisor MTE, Data Analyst, Admin Dominio)", key="login_nome")
+            senha_input = st.text_input("Senha (Ex: 123, admin)", type="password", key="login_senha")
             
-            if user:
-                st.session_state['usuario'] = user['nome']
-                st.session_state['perfil'] = user['perfil']
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
+            if st.button("Acessar o Sistema"):
+                conn = get_db_connection()
+                user = conn.execute("SELECT * FROM usuarios WHERE nome = ? AND senha = ?", (nome_input, senha_input)).fetchone()
+                conn.close()
+                
+                if user:
+                    st.session_state['usuario'] = user['nome']
+                    st.session_state['perfil'] = user['perfil']
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+                    
+        with tab_criar:
+            st.subheader("Criar Nova Conta")
+            c_nome = st.text_input("Nome de Usuário", key="criar_nome")
+            c_senha = st.text_input("Senha", type="password", key="criar_senha")
+            c_perfil = st.selectbox("Perfil de Acesso", ["Usuário Decisor", "Analista de Dados", "Analista de Domínio"], key="criar_perfil")
+            
+            if st.button("Cadastrar Conta"):
+                if c_nome and c_senha:
+                    conn = get_db_connection()
+                    # Verifica se já existe o nome de usuário
+                    existe = conn.execute("SELECT id FROM usuarios WHERE nome = ?", (c_nome,)).fetchone()
+                    if existe:
+                        st.error("Nome de usuário já existe. Tente outro.")
+                    else:
+                        conn.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES (?, ?, ?)", (c_nome, c_senha, c_perfil))
+                        conn.commit()
+                        st.success("Conta criada com sucesso! Faça o login na aba 'Login'.")
+                    conn.close()
+                else:
+                    st.warning("Preencha todos os campos.")
+                    
+        with tab_recuperar:
+            st.subheader("Recuperar Senha")
+            r_nome = st.text_input("Nome de Usuário para recuperação", key="recuperar_nome")
+            
+            if st.button("Buscar Senha"):
+                if r_nome:
+                    conn = get_db_connection()
+                    user = conn.execute("SELECT senha FROM usuarios WHERE nome = ?", (r_nome,)).fetchone()
+                    conn.close()
+                    
+                    if user:
+                        st.info(f"Sua senha é: {user['senha']}")
+                    else:
+                        st.error("Usuário não encontrado.")
+                else:
+                    st.warning("Informe o nome de usuário.")
     else:
         st.write(f"Conectado como: **{st.session_state['usuario']}**")
         st.write(f"Perfil de Acesso: *{st.session_state['perfil']}*")
