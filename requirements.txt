@@ -8,4 +8,4 @@ seaborn
 groq
 duckduckgo-search
 fpdf2
-plotly
+plotly>=5.18.0,<6.0.0

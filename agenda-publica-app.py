@@ -510,46 +510,54 @@ if perfil == 'Gestor Público':
         with col_mapa:
             st.markdown("#### 🗺️ Mapa Geoespacial: Escolas & Manchas Criminais (Salvador/BA)")
             
-            # Mapa Plotly Mapbox universal
-            fig_mapa = go.Figure()
-            color_map = {'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'}
-            
-            for nivel, cor in color_map.items():
-                df_sub = df_filtrado[df_filtrado['nivel_prioridade'] == nivel]
-                if not df_sub.empty:
-                    hover_texts = [
-                        f"<b>{r['nome_escola']}</b><br>Bairro: {r['bairro']}<br>IVS: {r['ivs']:.2f}<br>Crimes (500m): {int(r['crimes_500m'])}<br>Alunos em Risco: {int(r['alunos_risco_evasao'])}<br>Total Alunos: {int(r['total_alunos_ativos'])}"
-                        for _, r in df_sub.iterrows()
-                    ]
-                    sizes = [max(12, min(30, int(r['crimes_500m'] / 6))) for _, r in df_sub.iterrows()]
-                    
-                    fig_mapa.add_trace(go.Scattermapbox(
-                        lat=df_sub['latitude'],
-                        lon=df_sub['longitude'],
-                        mode='markers+text',
-                        marker=dict(
-                            size=sizes,
-                            color=cor,
-                            opacity=0.9
-                        ),
-                        text=df_sub['nome_escola'],
-                        textposition="top right",
-                        hoverinfo='text',
-                        hovertext=hover_texts,
-                        name=nivel
-                    ))
-            
-            fig_mapa.update_layout(
-                mapbox=dict(
-                    style="open-street-map",
-                    center=dict(lat=-12.9714, lon=-38.5014),
-                    zoom=11
-                ),
-                height=480,
-                margin=dict(l=0, r=0, t=0, b=0),
-                legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.02, bgcolor="rgba(255, 255, 255, 0.9)")
-            )
-            st.plotly_chart(fig_mapa, use_container_width=True)
+            try:
+                # Compatibilidade universal com Plotly v5 e v6+
+                ScatterClass = getattr(go, 'Scattermap', getattr(go, 'Scattermapbox', None))
+                map_style_key = "map" if hasattr(go, 'Scattermap') and ScatterClass == getattr(go, 'Scattermap') else "mapbox"
+                
+                fig_mapa = go.Figure()
+                color_map = {'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'}
+                
+                for nivel, cor in color_map.items():
+                    df_sub = df_filtrado[df_filtrado['nivel_prioridade'] == nivel]
+                    if not df_sub.empty:
+                        hover_texts = [
+                            f"<b>{r['nome_escola']}</b><br>Bairro: {r['bairro']}<br>IVS: {r['ivs']:.2f}<br>Crimes (500m): {int(r['crimes_500m'])}<br>Alunos em Risco: {int(r['alunos_risco_evasao'])}<br>Total Alunos: {int(r['total_alunos_ativos'])}"
+                            for _, r in df_sub.iterrows()
+                        ]
+                        sizes = [max(14, min(32, int(r['crimes_500m'] / 5.5))) for _, r in df_sub.iterrows()]
+                        
+                        fig_mapa.add_trace(ScatterClass(
+                            lat=df_sub['latitude'],
+                            lon=df_sub['longitude'],
+                            mode='markers+text',
+                            marker=dict(
+                                size=sizes,
+                                color=cor,
+                                opacity=0.9
+                            ),
+                            text=df_sub['nome_escola'],
+                            textposition="top right",
+                            hoverinfo='text',
+                            hovertext=hover_texts,
+                            name=nivel
+                        ))
+                
+                layout_map_args = {
+                    map_style_key: dict(
+                        style="open-street-map",
+                        center=dict(lat=-12.9714, lon=-38.5014),
+                        zoom=11
+                    ),
+                    "height": 480,
+                    "margin": dict(l=0, r=0, t=0, b=0),
+                    "legend": dict(yanchor="top", y=0.98, xanchor="left", x=0.02, bgcolor="rgba(255, 255, 255, 0.9)")
+                }
+                fig_mapa.update_layout(**layout_map_args)
+                st.plotly_chart(fig_mapa, use_container_width=True)
+            except Exception:
+                st.map(df_filtrado, latitude='latitude', longitude='longitude', size='crimes_500m', use_container_width=True)
+                
             st.caption("🔴 Crítico (Alto IVS + Crimes) · 🟠 Médio Risco · 🟢 Baixo Risco. Tamanho = Volume de crimes no raio de 500m.")
 
         with col_sim:
