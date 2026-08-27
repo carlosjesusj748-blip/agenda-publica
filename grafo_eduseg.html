@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Grafo de Conhecimento - SAD-EduSeg</title>
+    <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/3d-force-graph@1.70.0/dist/3d-force-graph.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0f1d; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
+        #graph { width: 100%; height: 100vh; }
+        .legend {
+            position: absolute; bottom: 16px; left: 16px;
+            background: rgba(10, 15, 30, 0.9); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 14px 18px; font-size: 12px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 10;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .title-bar {
+            position: absolute; top: 16px; left: 16px;
+            background: rgba(10, 15, 30, 0.9); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 12px 20px; z-index: 10; font-size: 14px; font-weight: 600;
+            background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(255,144,0,0.1));
+        }
+    </style>
+</head>
+<body>
+    <div class="title-bar">🧠 Grafo de Conhecimento — Arquitetura SAD-EduSeg</div>
+    <div id="graph"></div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#00f0ff;box-shadow:0 0 8px #00f0ff"></div>Regiões (Contexto)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4ade80;box-shadow:0 0 8px #4ade80"></div>Escolas (Educação)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#c084fc;box-shadow:0 0 8px #c084fc"></div>Alunos (SHA-256)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f43f5e;box-shadow:0 0 8px #f43f5e"></div>Ocorrências (SSP-BA)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#fbbf24;box-shadow:0 0 8px #fbbf24"></div>Auditoria (LGPD)</div>
+    </div>
+    <script>
+    const graphData = GRAPH_DATA_PLACEHOLDER;
+
+    const colorMap = {
+        'regiao': '#00f0ff',
+        'escola': '#4ade80',
+        'aluno': '#c084fc',
+        'ocorrencia': '#f43f5e',
+        'auditoria': '#fbbf24'
+    };
+
+    const Graph = ForceGraph3D()(document.getElementById('graph'))
+        .graphData(graphData)
+        .backgroundColor('#0a0f1d')
+        .nodeColor(n => colorMap[n.type] || '#94a3b8')
+        .nodeVal(n => n.type === 'regiao' ? 8 : n.type === 'escola' ? 6 : n.type === 'auditoria' ? 5 : 2)
+        .nodeLabel(n => `<div style="background:rgba(0,0,0,0.85);color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;max-width:250px">
+            <b>${n.label}</b><br><span style="color:#94a3b8">${n.type.toUpperCase()}</span>
+            ${n.detail ? '<br><span style="color:#cbd5e1;font-size:11px">' + n.detail + '</span>' : ''}
+        </div>`)
+        .linkColor(() => 'rgba(148, 163, 184, 0.15)')
+        .linkWidth(0.5)
+        .linkDirectionalParticles(2)
+        .linkDirectionalParticleSpeed(0.003)
+        .linkDirectionalParticleWidth(1.2)
+        .linkDirectionalParticleColor(() => 'rgba(99, 102, 241, 0.6)')
+        .onNodeClick(node => {
+            const dist = 120;
+            const pos = node;
+            Graph.cameraPosition({ x: pos.x + dist, y: pos.y + dist / 2, z: pos.z + dist }, pos, 1500);
+        });
+
+    Graph.d3Force('charge').strength(-60);
+    </script>
+</body>
+</html>

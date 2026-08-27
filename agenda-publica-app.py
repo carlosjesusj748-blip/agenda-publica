@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ import sqlite3
 import database
 import time
 import os
+import json
 from datetime import datetime
 
 # Caminho absoluto para o banco de dados
@@ -95,6 +97,8 @@ with st.sidebar:
             registrar_log(st.session_state['usuario'], st.session_state['perfil'], "LOGOUT", "usuarios")
             st.session_state['usuario'] = None
             st.session_state['perfil'] = None
+            if 'messages' in st.session_state:
+                del st.session_state['messages']
             st.rerun()
 
     st.markdown("---")
@@ -162,78 +166,170 @@ df_regioes = carregar_regioes()
 
 registrar_log(usuario_atual, perfil, "CONSULTA_PAINEL", "vw_alerta_vulnerabilidade_escolas")
 
+
 # ==============================================================================
-# PERFIL: GESTOR PÚBLICO (Dashboard + Blend + IA)
+# FUNÇÃO: GERAR GRAFO 3D DAS RELAÇÕES DO BANCO
+# ==============================================================================
+def gerar_grafo_3d():
+    """Gera o JSON de nós e arestas do banco e renderiza o grafo 3D."""
+    nodes = []
+    links = []
+    node_id = 0
+
+    # Nó central do sistema
+    nodes.append({"id": "sad", "label": "SAD-EduSeg", "type": "auditoria", "detail": "Sistema Central"})
+
+    # Regiões
+    for _, r in df_regioes.iterrows():
+        rid = f"reg_{r['id_regiao']}"
+        nodes.append({
+            "id": rid, "label": r['nome_bairro'], "type": "regiao",
+            "detail": f"IVS: {r['indice_vulnerabilidade_social']:.2f} | Renda: R${r['renda_media_familiar']:,.0f}"
+        })
+        links.append({"source": "sad", "target": rid})
+
+    # Escolas
+    for _, e in df_escolas.iterrows():
+        eid = f"esc_{e['id_escola']}"
+        rid = f"reg_{e['id_escola']}"
+        nodes.append({
+            "id": eid, "label": e['nome_escola'], "type": "escola",
+            "detail": f"Alunos: {e['total_alunos_ativos']} | Turno: {e['turno_funcionamento']}"
+        })
+        links.append({"source": rid, "target": eid})
+
+    # Ocorrências agrupadas por região
+    ocorr_por_regiao = df_ocorrencias.groupby('id_regiao').agg(
+        total=('id_ocorrencia', 'count'),
+        crimes_500m=('distancia_escola_proxima_metros', lambda x: (x <= 500).sum())
+    ).reset_index()
+
+    for _, o in ocorr_por_regiao.iterrows():
+        oid = f"ocorr_{o['id_regiao']}"
+        rid = f"reg_{int(o['id_regiao'])}"
+        nodes.append({
+            "id": oid, "label": f"BOs Região {int(o['id_regiao'])}", "type": "ocorrencia",
+            "detail": f"Total: {o['total']} | ≤500m: {o['crimes_500m']}"
+        })
+        links.append({"source": rid, "target": oid})
+
+    # Alunos agrupados por escola (resumo)
+    conn = sqlite3.connect(DB_PATH)
+    alunos_resumo = pd.read_sql_query("""
+        SELECT id_escola, COUNT(*) as total,
+               SUM(CASE WHEN flag_evasao_risco = 1 THEN 1 ELSE 0 END) as em_risco
+        FROM tabelas_educacao_alunos_anonimizados GROUP BY id_escola
+    """, conn)
+    conn.close()
+
+    for _, a in alunos_resumo.iterrows():
+        aid = f"alunos_{a['id_escola']}"
+        eid = f"esc_{a['id_escola']}"
+        nodes.append({
+            "id": aid, "label": f"Alunos (SHA-256)", "type": "aluno",
+            "detail": f"Total: {a['total']} | Em Risco: {a['em_risco']}"
+        })
+        links.append({"source": eid, "target": aid})
+
+    # Nó de Auditoria
+    nodes.append({"id": "audit", "label": "Logs Auditoria", "type": "auditoria", "detail": "LGPD · Trilha Imutável"})
+    links.append({"source": "sad", "target": "audit"})
+
+    return {"nodes": nodes, "links": links}
+
+
+# ==============================================================================
+# PERFIL: GESTOR PÚBLICO (Dashboard + Blend + IA Multi-Fases)
 # ==============================================================================
 if perfil == 'Gestor Público':
     st.title("Painel do Gestor — Secretaria Integrada SSP/SEC")
 
-    # --- SUMARIZAÇÃO COM INDICADORES IAC E DCE ---
-    st.header("1. Indicadores de Inteligência (BI)")
+    tab_dash, tab_ia = st.tabs(["📊 Dashboard & Simulador", "🤖 Copiloto IA"])
 
-    total_alunos = df_escolas['total_alunos_ativos'].sum()
-    total_risco_evasao = df_escolas['alunos_risco_evasao'].sum()
-    iac = round((total_risco_evasao / total_alunos) * 100, 1) if total_alunos > 0 else 0
-    total_crimes_500m = df_escolas['crimes_500m'].sum()
+    with tab_dash:
+        # --- SUMARIZAÇÃO COM INDICADORES IAC E DCE ---
+        st.header("1. Indicadores de Inteligência (BI)")
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Alunos Monitorados", f"{total_alunos:,}")
-    col2.metric("IAC (Assiduidade Crítica)", f"{iac}%", "Alunos <75% presença", delta_color="inverse")
-    col3.metric("Crimes (Raio 500m)", f"{total_crimes_500m}", "Últimos 90 dias", delta_color="inverse")
-    col4.metric("Escolas Analisadas", len(df_escolas))
-    st.markdown("---")
+        total_alunos = df_escolas['total_alunos_ativos'].sum()
+        total_risco_evasao = df_escolas['alunos_risco_evasao'].sum()
+        iac = round((total_risco_evasao / total_alunos) * 100, 1) if total_alunos > 0 else 0
+        total_crimes_500m = df_escolas['crimes_500m'].sum()
 
-    # --- SIMULADOR BLEND DE OPÇÕES ---
-    st.header("2. Simulador de Intervenções (Blend de Opções)")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Alunos Monitorados", f"{total_alunos:,}")
+        col2.metric("IAC (Assiduidade Crítica)", f"{iac}%", "Alunos <75% presença", delta_color="inverse")
+        col3.metric("Crimes (Raio 500m)", f"{total_crimes_500m}", "Últimos 90 dias", delta_color="inverse")
+        col4.metric("Escolas Analisadas", len(df_escolas))
+        st.markdown("---")
 
-    escola_selecionada = st.selectbox("Selecione a Escola", df_escolas['nome_escola'])
-    escola_data = df_escolas[df_escolas['nome_escola'] == escola_selecionada].iloc[0]
+        # --- SIMULADOR BLEND DE OPÇÕES ---
+        st.header("2. Simulador de Intervenções (Blend de Opções)")
 
-    col_l, col_r = st.columns([1, 1])
+        escola_selecionada = st.selectbox("Selecione a Escola", df_escolas['nome_escola'])
+        escola_data = df_escolas[df_escolas['nome_escola'] == escola_selecionada].iloc[0]
 
-    with col_l:
-        st.subheader("Alocação Orçamentária")
-        orcamento_seguranca = st.slider("Patrulhamento PM/Ronda Escolar (R$ Mi)", 1.0, 10.0, 3.5, 0.5)
-        orcamento_educacao = st.slider("Assistência Pedagógica / Integral (R$ Mi)", 1.0, 10.0, 4.0, 0.5)
+        col_l, col_r = st.columns([1, 1])
 
-    with col_r:
-        st.subheader("Classificação e Recomendação")
+        with col_l:
+            st.subheader("Alocação Orçamentária")
+            orcamento_seguranca = st.slider("Patrulhamento PM/Ronda Escolar (R$ Mi)", 1.0, 10.0, 3.5, 0.5)
+            orcamento_educacao = st.slider("Assistência Pedagógica / Integral (R$ Mi)", 1.0, 10.0, 4.0, 0.5)
 
-        risco_pontuacao = (escola_data['crimes_500m'] * 0.5) + (escola_data['alunos_risco_evasao'] * 2) + (escola_data['ivs'] * 50)
+        with col_r:
+            st.subheader("Classificação e Recomendação")
 
-        if risco_pontuacao > 80:
-            nivel_risco = "CRÍTICO"
-            cor_risco = "🔴"
-            if orcamento_seguranca > orcamento_educacao:
-                recomendacao = "**Blend A (Policial):** Ronda Escolar intensiva + Câmeras COI no entorno."
+            risco_pontuacao = (escola_data['crimes_500m'] * 0.5) + (escola_data['alunos_risco_evasao'] * 2) + (escola_data['ivs'] * 50)
+
+            if risco_pontuacao > 80:
+                nivel_risco = "CRÍTICO"
+                cor_risco = "🔴"
+                if orcamento_seguranca > orcamento_educacao:
+                    recomendacao = "**Blend A (Policial):** Ronda Escolar intensiva + Câmeras COI no entorno."
+                else:
+                    recomendacao = "**Blend B (Pedagógico):** Escola em Tempo Integral + Busca Ativa + Abertura nos finais de semana."
+            elif risco_pontuacao > 40:
+                nivel_risco = "MODERADO"
+                cor_risco = "🟡"
+                recomendacao = "**Blend C (Preventivo):** Policiamento comunitário + Monitoramento de frequência."
             else:
-                recomendacao = "**Blend B (Pedagógico):** Escola em Tempo Integral + Busca Ativa + Abertura nos finais de semana."
-        elif risco_pontuacao > 40:
-            nivel_risco = "MODERADO"
-            cor_risco = "🟡"
-            recomendacao = "**Blend C (Preventivo):** Policiamento comunitário + Monitoramento de frequência."
-        else:
-            nivel_risco = "ESTÁVEL"
-            cor_risco = "🟢"
-            recomendacao = "Manter alocação padrão. Escola em zona segura."
+                nivel_risco = "ESTÁVEL"
+                cor_risco = "🟢"
+                recomendacao = "Manter alocação padrão. Escola em zona segura."
 
-        st.metric(f"{cor_risco} Nível de Risco", nivel_risco)
-        st.info(f"🎯 {recomendacao}")
-        st.caption(f"IVS: {escola_data['ivs']:.2f} | Assiduidade Média: {escola_data['media_assiduidade']}% | Crimes 500m: {escola_data['crimes_500m']}")
+            st.metric(f"{cor_risco} Nível de Risco", nivel_risco)
+            st.info(f"🎯 {recomendacao}")
+            st.caption(f"IVS: {escola_data['ivs']:.2f} | Assiduidade: {escola_data['media_assiduidade']}% | Crimes 500m: {escola_data['crimes_500m']}")
 
-    st.markdown("---")
+    # --- COPILOTO IA MULTI-FASES (GROQ + DUCKDUCKGO) ---
+    with tab_ia:
+        st.header("Copiloto EduSeg — IA Multi-Fases")
+        st.caption("Groq Llama 3 (Gratuito) + DuckDuckGo Search (Gratuito) · Zero Custo")
 
-    # --- COPILOTO IA (GROQ / LLAMA 3) ---
-    st.header("3. Copiloto IA (Conselheiro Especialista)")
+        api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis)", type="password", help="Crie sua chave gratuita em console.groq.com")
 
-    api_key = st.sidebar.text_input("🔑 Groq API Key", type="password", help="Insira sua chave da API Groq para habilitar o Copiloto IA (Llama 3).")
+        if api_key:
+            from agente_eduseg import AgenteEduSeg
 
-    if api_key:
-        try:
-            from groq import Groq
-            client = Groq(api_key=api_key)
+            agente = AgenteEduSeg(api_key=api_key)
+
+            # Preparar contexto do banco para o agente
+            contexto_banco = f"""### Escola Selecionada: {escola_data['nome_escola']}
+- Bairro: {escola_data['bairro']}
+- IVS: {escola_data['ivs']:.2f}
+- Total de Alunos: {escola_data['total_alunos_ativos']}
+- Assiduidade Média: {escola_data['media_assiduidade']}%
+- Alunos em Risco de Evasão (<75%): {escola_data['alunos_risco_evasao']}
+- Crimes no Raio de 500m: {escola_data['crimes_500m']}
+- Ocorrências Disciplinares: {escola_data['total_ocorrencias_disc']}
+- Classificação SAD: {nivel_risco}
+
+### Resumo Geral de Salvador
+- Total de Alunos Monitorados: {total_alunos}
+- IAC (Índice de Assiduidade Crítica): {iac}%
+- Total de Crimes 500m (todas escolas): {total_crimes_500m}"""
 
             st.info(f"💡 Contexto ativo: **{escola_data['nome_escola']}** ({escola_data['bairro']}) — Risco: {nivel_risco}")
+            st.caption("💬 Pergunte sobre dados reais do INEP, notícias da SSP-BA ou peça recomendações de política pública. O agente buscará na web automaticamente quando necessário.")
 
             if "messages" not in st.session_state:
                 st.session_state.messages = []
@@ -242,58 +338,40 @@ if perfil == 'Gestor Público':
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            if prompt := st.chat_input("Ex: 'Qual política pública reduz a evasão nessa escola?'"):
+            if prompt := st.chat_input("Ex: 'Busque os dados atuais do IDEB dessa escola' ou 'Qual política reduz evasão?'"):
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
                     st.markdown(prompt)
 
                 with st.chat_message("assistant"):
                     message_placeholder = st.empty()
+                    with st.spinner("Processando (pode buscar na web)..."):
+                        try:
+                            resultado = agente.chat(prompt, st.session_state.messages[:-1], contexto_banco)
+                            full_response = resultado["response"]
+                            message_placeholder.markdown(full_response)
 
-                    sys_prompt = (
-                        f"Você é um conselheiro especialista em políticas públicas do Governo da Bahia, "
-                        f"atuando no cruzamento entre Segurança Pública (SSP-BA) e Educação (SEC-BA). "
-                        f"Contexto da escola analisada: "
-                        f"Nome: {escola_data['nome_escola']}, Bairro: {escola_data['bairro']}, "
-                        f"IVS (Vulnerabilidade Social): {escola_data['ivs']:.2f}, "
-                        f"Total de Alunos: {escola_data['total_alunos_ativos']}, "
-                        f"Assiduidade Média: {escola_data['media_assiduidade']}%, "
-                        f"Alunos em Risco de Evasão (<75%): {escola_data['alunos_risco_evasao']}, "
-                        f"Crimes no Raio de 500m: {escola_data['crimes_500m']}, "
-                        f"Ocorrências Disciplinares Internas: {escola_data['total_ocorrencias_disc']}, "
-                        f"Classificação SAD: {nivel_risco}. "
-                        f"Responda de forma analítica, concisa e baseada nesses dados."
-                    )
+                            if resultado["buscou_web"]:
+                                st.caption(f"🌐 Fase: {resultado['fase']} (dados da web incluídos)")
+                            else:
+                                st.caption(f"📊 Fase: {resultado['fase']} (baseado no banco local)")
 
-                    messages_for_api = [{"role": "system", "content": sys_prompt}]
-                    for m in st.session_state.messages:
-                        messages_for_api.append(m)
-
-                    try:
-                        response = client.chat.completions.create(
-                            model="llama3-8b-8192",
-                            messages=messages_for_api,
-                        )
-                        full_response = response.choices[0].message.content
-                        message_placeholder.markdown(full_response)
-                        st.session_state.messages.append({"role": "assistant", "content": full_response})
-                        registrar_log(usuario_atual, perfil, "CONSULTA_IA", "groq_llama3")
-                    except Exception as e:
-                        st.error(f"Erro na API Groq: {e}")
-        except ImportError:
-            st.error("Biblioteca 'groq' não instalada.")
-    else:
-        st.warning("👈 Insira sua Chave de API Groq na barra lateral para habilitar o Copiloto IA.")
+                            st.session_state.messages.append({"role": "assistant", "content": full_response})
+                            registrar_log(usuario_atual, perfil, f"CONSULTA_IA_{resultado['fase']}", "agente_eduseg")
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+        else:
+            st.warning("👈 Insira sua Chave de API Groq **gratuita** na barra lateral. Crie em [console.groq.com](https://console.groq.com)")
 
 
 # ==============================================================================
-# PERFIL: ANALISTA KDD (Data Mining)
+# PERFIL: ANALISTA KDD (Data Mining + Grafo 3D)
 # ==============================================================================
 elif perfil == 'Analista KDD':
     st.title("Módulo de Mineração de Dados (KDD)")
     registrar_log(usuario_atual, perfil, "ACESSO_KDD", "vw_alerta_vulnerabilidade_escolas")
 
-    tab1, tab2, tab3 = st.tabs(["📍 Clustering (K-Means)", "📈 Regressão Linear", "📊 Análise por Delito"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📍 Clustering (K-Means)", "📈 Regressão Linear", "📊 Delitos por Bairro", "🧠 Grafo 3D"])
 
     with tab1:
         st.subheader("Segmentação de Escolas por Vulnerabilidade")
@@ -331,13 +409,13 @@ elif perfil == 'Analista KDD':
 
         fig2, ax2 = plt.subplots(figsize=(10, 5))
         ax2.scatter(X_reg, y_reg, color='#e74c3c', s=120, label="Dados Reais", edgecolors='white', linewidths=0.8)
-        ax2.plot(sorted(X_reg), model.predict(sorted(X_reg)), color='#3498db', linewidth=2, linestyle='--', label=f"Tendência Linear (R²={r2:.2f})")
+        ax2.plot(sorted(X_reg), model.predict(sorted(X_reg)), color='#3498db', linewidth=2, linestyle='--', label=f"Tendência (R²={r2:.2f})")
         ax2.set_xlabel("Crimes no Entorno (SSP-BA)")
         ax2.set_ylabel("Alunos em Risco de Evasão")
         ax2.set_title("Correlação: Criminalidade vs Evasão Escolar")
         ax2.legend()
         st.pyplot(fig2)
-        st.write(f"**Coeficiente Angular:** {model.coef_[0]:.3f} — A cada crime adicional no entorno, estima-se +{model.coef_[0]:.1f} alunos em risco de evasão.")
+        st.write(f"**Coeficiente Angular:** {model.coef_[0]:.3f} — A cada crime adicional, estima-se +{model.coef_[0]:.1f} alunos em risco.")
 
     with tab3:
         st.subheader("Distribuição de Delitos por Tipo e Bairro")
@@ -354,6 +432,23 @@ elif perfil == 'Analista KDD':
         plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
         st.pyplot(fig3)
+
+    with tab4:
+        st.subheader("Grafo de Conhecimento 3D — Arquitetura do Banco")
+        st.caption("Visualização interativa das relações: Regiões → Escolas → Alunos (SHA-256) → Ocorrências SSP-BA")
+
+        graph_data = gerar_grafo_3d()
+
+        # Ler o template HTML e injetar os dados
+        html_path = os.path.join(BASE_DIR, "grafo_eduseg.html")
+        try:
+            with open(html_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+
+            html_content = html_content.replace("GRAPH_DATA_PLACEHOLDER", json.dumps(graph_data, ensure_ascii=False))
+            components.html(html_content, height=600, scrolling=False)
+        except FileNotFoundError:
+            st.error("Arquivo grafo_eduseg.html não encontrado.")
 
 
 # ==============================================================================
