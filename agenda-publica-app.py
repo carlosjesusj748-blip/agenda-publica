@@ -62,6 +62,26 @@ st.markdown("""
     
     .stApp { background-color: #f1f5f9; }
     
+    /* Sidebar Text & Colors */
+    [data-testid="stSidebar"] {
+        background-color: #0f172a !important;
+    }
+    [data-testid="stSidebar"] * {
+        color: #f8fafc !important;
+    }
+    [data-testid="stSidebar"] input {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+        border: 1px solid #334155 !important;
+    }
+    [data-testid="stSidebar"] .stSelectbox > div > div {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .stCaption {
+        color: #94a3b8 !important;
+    }
+    
     /* Top Header Bar */
     .top-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -490,28 +510,47 @@ if perfil == 'Gestor Público':
         with col_mapa:
             st.markdown("#### 🗺️ Mapa Geoespacial: Escolas & Manchas Criminais (Salvador/BA)")
             
-            # Mapa Plotly Mapbox com OpenStreetMap
-            fig_mapa = px.scatter_mapbox(
-                df_filtrado,
-                lat='latitude',
-                lon='longitude',
-                color='nivel_prioridade',
-                size='crimes_500m',
-                hover_name='nome_escola',
-                hover_data={'bairro': True, 'ivs': ':.2f', 'crimes_500m': True, 'alunos_risco_evasao': True, 'total_alunos_ativos': True, 'latitude': False, 'longitude': False},
-                color_discrete_map={'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'},
-                size_max=28,
-                zoom=11,
-                center=dict(lat=-12.9714, lon=-38.5014),
-                mapbox_style="open-street-map"
-            )
+            # Mapa Plotly Mapbox universal
+            fig_mapa = go.Figure()
+            color_map = {'Crítico': '#dc2626', 'Médio Risco': '#ea580c', 'Baixo Risco': '#059669'}
+            
+            for nivel, cor in color_map.items():
+                df_sub = df_filtrado[df_filtrado['nivel_prioridade'] == nivel]
+                if not df_sub.empty:
+                    hover_texts = [
+                        f"<b>{r['nome_escola']}</b><br>Bairro: {r['bairro']}<br>IVS: {r['ivs']:.2f}<br>Crimes (500m): {int(r['crimes_500m'])}<br>Alunos em Risco: {int(r['alunos_risco_evasao'])}<br>Total Alunos: {int(r['total_alunos_ativos'])}"
+                        for _, r in df_sub.iterrows()
+                    ]
+                    sizes = [max(12, min(30, int(r['crimes_500m'] / 6))) for _, r in df_sub.iterrows()]
+                    
+                    fig_mapa.add_trace(go.Scattermapbox(
+                        lat=df_sub['latitude'],
+                        lon=df_sub['longitude'],
+                        mode='markers+text',
+                        marker=dict(
+                            size=sizes,
+                            color=cor,
+                            opacity=0.9
+                        ),
+                        text=df_sub['nome_escola'],
+                        textposition="top right",
+                        hoverinfo='text',
+                        hovertext=hover_texts,
+                        name=nivel
+                    ))
+            
             fig_mapa.update_layout(
+                mapbox=dict(
+                    style="open-street-map",
+                    center=dict(lat=-12.9714, lon=-38.5014),
+                    zoom=11
+                ),
                 height=480,
                 margin=dict(l=0, r=0, t=0, b=0),
-                legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.02, bgcolor="rgba(255, 255, 255, 0.85)")
+                legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.02, bgcolor="rgba(255, 255, 255, 0.9)")
             )
             st.plotly_chart(fig_mapa, use_container_width=True)
-            st.caption("🔴 Crítico: IVS e Crimes elevados · 🟠 Médio Risco · 🟢 Baixo Risco. Tamanho do ponto = Volume de crimes no raio de 500m.")
+            st.caption("🔴 Crítico (Alto IVS + Crimes) · 🟠 Médio Risco · 🟢 Baixo Risco. Tamanho = Volume de crimes no raio de 500m.")
 
         with col_sim:
             st.markdown("#### ⚙️ Motor de Inferência (Simulador de Políticas)")
