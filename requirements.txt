@@ -7,3 +7,4 @@ mlxtend
 seaborn
 groq
 duckduckgo-search
+fpdf2

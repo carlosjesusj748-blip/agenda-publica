@@ -13,6 +13,8 @@ import time
 import os
 import json
 from datetime import datetime
+from fpdf import FPDF
+import io
 
 # Caminho absoluto para o banco de dados
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -269,6 +271,39 @@ def carregar_visao_escolas():
     conn.close()
     return df
 
+def gerar_pdf_relatorio(escola, ivs, crimes, evasao, score, rec_titulo, rec_texto):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "SAD-EduSeg - Relatorio Oficial de Inteligencia", ln=True, align="C")
+    pdf.set_font("Arial", "I", 10)
+    pdf.cell(0, 10, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, f"Alvo da Intervencao: {escola}", ln=True)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 10, f"Indice de Vulnerabilidade Social (IVS): {ivs:.2f}", ln=True)
+    pdf.cell(0, 10, f"Crimes no Raio de 500m: {crimes}", ln=True)
+    pdf.cell(0, 10, f"Alunos em Risco de Evasao: {evasao}", ln=True)
+    pdf.cell(0, 10, f"Score de Risco Calculado: {score:.0f} pts", ln=True)
+    
+    pdf.ln(10)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "DIRETRIZ RECOMENDADA (MOTOR DE INFERENCIA):", ln=True)
+    
+    pdf.set_font("Arial", "B", 11)
+    
+    # Tratamento simples de caracteres para FPDF padrao sem fontes TTF externas
+    rt = rec_titulo.replace('ã','a').replace('ç','c').replace('é','e').replace('í','i').replace('õ','o').replace('á','a').replace('ó','o').replace('ú','u')
+    rx = rec_texto.replace('ã','a').replace('ç','c').replace('é','e').replace('í','i').replace('õ','o').replace('á','a').replace('ó','o').replace('ú','u')
+    
+    pdf.multi_cell(0, 10, rt)
+    pdf.set_font("Arial", "", 11)
+    pdf.multi_cell(0, 10, rx)
+    
+    return bytes(pdf.output())
+
 @st.cache_data(ttl=60)
 def carregar_ocorrencias():
     conn = sqlite3.connect(DB_PATH)
@@ -378,6 +413,8 @@ if perfil == 'Gestor Público':
             # Lógica do Blend de Decisão conforme HTML do usuário
             if score > 150:
                 if orc_ssp > orc_sec:
+                    rt = "Blend A: Intervencao Ostensiva (Policial)"
+                    rx = f"Risco altissimo calculado ({score:.0f} pts). Como o orcamento SSP e maior, recomenda-se alocar Base Movel da PM na porta da escola. Evasao deve cair via sensacao de seguranca."
                     st.markdown(f"""
                     <div class="blend-box blend-critico">
                         <div style="font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.5rem;"><i class="fas fa-triangle-exclamation"></i> Ação Crítica Recomendada</div>
@@ -385,6 +422,8 @@ if perfil == 'Gestor Público':
                         <p style="margin: 0; font-size: 0.875rem; line-height: 1.5; color: #fee2e2;">Risco altíssimo calculado ({score:.0f} pts). Como o orçamento SSP é maior, recomenda-se alocar <strong>Base Móvel da PM</strong> na porta da escola e expandir monitoramento COI. Evasão deve cair via sensação de segurança.</p>
                     </div>""", unsafe_allow_html=True)
                 else:
+                    rt = "Blend B: Blindagem Social (Pedagogica)"
+                    rx = f"Risco altissimo calculado ({score:.0f} pts). Como orcamento SEC e prioritario, recomenda-se Turno Integral imediato para conter a forca de atracao do crime local."
                     st.markdown(f"""
                     <div class="blend-box blend-moderado">
                         <div style="font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.5rem;"><i class="fas fa-triangle-exclamation"></i> Ação Crítica Recomendada</div>
@@ -392,19 +431,29 @@ if perfil == 'Gestor Público':
                         <p style="margin: 0; font-size: 0.875rem; line-height: 1.5; color: #fff7ed;">Risco altíssimo calculado ({score:.0f} pts). Como orçamento SEC é prioritário, recomenda-se <strong>Turno Integral imediato</strong> e bolsa permanência para conter a força de atração do crime local (IVS alto).</p>
                     </div>""", unsafe_allow_html=True)
             else:
+                rt = "Blend C: Manutencao Padrao"
+                rx = f"Risco aceitavel ({score:.0f} pts). Manter patrulha escolar padrao e acompanhamento de rotina da SEC. Orcamento pode ser contingenciado."
                 st.markdown(f"""
                 <div class="blend-box blend-estavel">
                     <div style="font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.5rem;"><i class="fas fa-check-circle"></i> Ação Preventiva Recomendada</div>
                     <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 700;">Blend C: Manutenção Padrão</h3>
                     <p style="margin: 0; font-size: 0.875rem; line-height: 1.5; color: #ecfdf5;">Risco aceitável ({score:.0f} pts). Manter patrulha escolar padrão e acompanhamento de rotina da SEC. Orçamento pode ser contingenciado para zonas de maior IVS.</p>
                 </div>""", unsafe_allow_html=True)
+                
+            st.markdown("<br>", unsafe_allow_html=True)
+            pdf_bytes = gerar_pdf_relatorio(escola_sel, esc['ivs'], esc['crimes_500m'], esc['alunos_risco_evasao'], score, rt, rx)
+            st.download_button(label="📄 Exportar Relatório Oficial (PDF)", data=pdf_bytes, file_name=f"Relatorio_{escola_sel[:10]}.pdf", mime="application/pdf", use_container_width=True)
 
     # ── ABA 2: COPILOTO IA ──
     with tab_ia:
         st.header("Copiloto EduSeg — IA Multi-Fases")
         st.caption("Groq Llama 3 (Gratuito) + DuckDuckGo Search (Gratuito) · Zero Custo")
 
-        api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis)", type="password", help="Crie em console.groq.com")
+        # Tenta pegar do secrets do Streamlit Cloud
+        try:
+            api_key = st.secrets["GROQ_API_KEY"]
+        except Exception:
+            api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis)", type="password", help="Configure via secrets ou digite aqui.")
 
         if api_key:
             from agente_eduseg import AgenteEduSeg
@@ -668,7 +717,10 @@ elif perfil == 'Analista KDD':
         st.header("Agente de Mineração de Dados")
         st.caption("Solicite análises complexas sobre a matriz de correlação ou regras Apriori. Zero custo (Groq).")
 
-        api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis) - KDD", type="password", key="kdd_groq")
+        try:
+            api_key = st.secrets["GROQ_API_KEY"]
+        except Exception:
+            api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis) - KDD", type="password", key="kdd_groq")
 
         if api_key:
             from agente_eduseg import AgenteEduSeg
