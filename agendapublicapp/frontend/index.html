@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgendaPúblicaApp - SAD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;">
+        <div>
+            <h1>📊 AgendaPúblicaApp</h1>
+            <p>Sistema de Apoio à Decisão - Análise da Agenda dos Trabalhadores de Aplicativos</p>
+        </div>
+        <button id="btn-logout" style="display: none;" class="btn btn-secondary">Sair</button>
+    </header>
+
+    <!-- Tela de Login -->
+    <section id="login-section">
+        <div class="card login-card">
+            <h2>Acesso Restrito</h2>
+            <p>Faça login para acessar o painel de análise.</p>
+            
+            <form id="login-form">
+                <input type="email" id="email" placeholder="Seu E-mail" required />
+                <input type="password" id="password" placeholder="Sua Senha" required />
+                <button type="submit" class="btn btn-primary">Entrar com E-mail</button>
+            </form>
+            
+            <div class="divider">ou</div>
+            
+            <button id="btn-google-login" class="btn btn-google">
+                🌐 Entrar com o Google
+            </button>
+        </div>
+    </section>
+
+    <main id="main-app" style="display: none;">
+        <!-- Status do Sistema -->
+        <section id="status">
+            <div class="card">
+                <h3>✅ Sistema Online</h3>
+                <p id="status-text">Conectando ao servidor...</p>
+            </div>
+            <div class="card">
+                <h3>📊 Total de Eventos</h3>
+                <p id="total-eventos">-</p>
+            </div>
+            <div class="card">
+                <h3>📈 Score de Efetividade</h3>
+                <p id="score-efetividade">-</p>
+            </div>
+        </section>
+
+        <!-- Recomendação -->
+        <section id="recomendacao">
+            <h2>💡 Recomendação Estratégica</h2>
+            <div id="recomendacao-content">
+                <p>Carregando recomendação...</p>
+            </div>
+        </section>
+
+        <!-- Gráficos -->
+        <section id="graficos">
+            <h2>📊 Análises Gráficas</h2>
+            <div class="grafico-container">
+                <div class="grafico-card">
+                    <h4>Impacto por Ator</h4>
+                    <img id="grafico-atores" src="" alt="Impacto por Ator">
+                </div>
+                <div class="grafico-card">
+                    <h4>Evolução Temporal</h4>
+                    <img id="grafico-evolucao" src="" alt="Evolução Temporal">
+                </div>
+                <div class="grafico-card">
+                    <h4>Mídia vs Impacto</h4>
+                    <img id="grafico-correlacao" src="" alt="Correlação">
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Desenvolvido para TCC - Agenda Pública dos Trabalhadores de Aplicativos (2020-2025)</p>
+        <p><a href="https://github.com/seu-usuario/agendapublicapp" target="_blank">GitHub</a></p>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
