@@ -613,7 +613,6 @@ elif perfil == 'Analista KDD':
 
     # ── GRAFO 3D ──
     with tab5:
-        from agenda_publica_app_logic import gerar_grafo_3d # Para modularidade, mas aqui usaremos inline
         def gerar_grafo_inline():
             nodes = []
             links = []
