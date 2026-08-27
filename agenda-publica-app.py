@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from mlxtend.frequent_patterns import apriori, association_rules
@@ -483,8 +484,8 @@ elif perfil == 'Analista KDD':
     
     registrar_log(usuario_atual, perfil, "ACESSO_KDD", "vw_alerta_vulnerabilidade")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📍 Agrupamento (K-Means)", "📈 Regressão Linear", "🔗 Associação (Apriori)", "📊 Delitos por Bairro", "🧠 Grafo 3D"
+    tab1, tab2, tab3, tab4, tab5, tab6, tab_ia = st.tabs([
+        "📍 Agrupamento (K-Means)", "📈 Regressão Linear", "🔗 Associação (Apriori)", "📊 Delitos por Bairro", "🧠 Grafo 3D", "🔥 Matriz de Correlação", "🤖 Copiloto IA"
     ])
 
     # ── AGRUPAMENTO ──
@@ -635,7 +636,7 @@ elif perfil == 'Analista KDD':
             return {"nodes": nodes, "links": links}
             
         st.subheader("Grafo de Conhecimento 3D — Arquitetura do Banco")
-        st.caption("Regiões → Escolas → Alunos (SHA-256) → Ocorrências SSP-BA")
+        st.caption("Regiões → Escolas → Ocorrências SSP-BA")
         graph_data = gerar_grafo_inline()
         html_path = os.path.join(BASE_DIR, "grafo_eduseg.html")
         try:
@@ -645,6 +646,55 @@ elif perfil == 'Analista KDD':
             components.html(html_content, height=600, scrolling=False)
         except FileNotFoundError:
             st.error("grafo_eduseg.html não encontrado.")
+
+    # ── CORRELAÇÃO ──
+    with tab6:
+        st.subheader("Matriz de Correlação de Indicadores (Heatmap)")
+        st.caption("Analise as interdependências numéricas entre crimes, vulnerabilidade e evasão escolar.")
+        
+        # Seleciona apenas colunas numéricas de interesse
+        colunas_interesse = ['ivs', 'renda', 'crimes_500m', 'media_assiduidade', 'alunos_risco_evasao', 'total_ocorrencias_disc']
+        df_corr = df_escolas[colunas_interesse].corr()
+        
+        fig_corr, ax_corr = plt.subplots(figsize=(10, 6))
+        sns.heatmap(df_corr, annot=True, cmap="coolwarm", fmt=".2f", linewidths=.5, ax=ax_corr)
+        ax_corr.set_xticklabels(['IVS', 'Renda', 'Crimes', 'Assiduidade', 'Evasão', 'Ocorr. Disc.'], rotation=45, ha='right')
+        ax_corr.set_yticklabels(['IVS', 'Renda', 'Crimes', 'Assiduidade', 'Evasão', 'Ocorr. Disc.'], rotation=0)
+        plt.tight_layout()
+        st.pyplot(fig_corr)
+
+    # ── COPILOTO IA (Analista) ──
+    with tab_ia:
+        st.header("Agente de Mineração de Dados")
+        st.caption("Solicite análises complexas sobre a matriz de correlação ou regras Apriori. Zero custo (Groq).")
+
+        api_key = st.sidebar.text_input("🔑 Groq API Key (Grátis) - KDD", type="password", key="kdd_groq")
+
+        if api_key:
+            from agente_eduseg import AgenteEduSeg
+            agente = AgenteEduSeg(api_key=api_key)
+            contexto_kdd = f"Escolas em Risco: {escolas_criticas}, Maior correlação evasão x crimes, Evasão Total: {total_risco_evasao}."
+            
+            if "messages_kdd" not in st.session_state:
+                st.session_state.messages_kdd = []
+            for m in st.session_state.messages_kdd:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+            if prompt := st.chat_input("Ex: Qual modelo preditivo usar para as escolas críticas?"):
+                st.session_state.messages_kdd.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                with st.chat_message("assistant"):
+                    ph = st.empty()
+                    with st.spinner("Minerando..."):
+                        try:
+                            res = agente.chat(prompt, st.session_state.messages_kdd[:-1], contexto_kdd)
+                            ph.markdown(res["response"])
+                            st.session_state.messages_kdd.append({"role": "assistant", "content": res["response"]})
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+        else:
+            st.warning("👈 Insira sua Chave Groq na barra lateral para ativar o Agente KDD.")
 
 
 # ==============================================================================
