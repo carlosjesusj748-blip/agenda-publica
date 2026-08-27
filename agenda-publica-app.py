@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestClassifier
 from mlxtend.frequent_patterns import apriori, association_rules
 import sqlite3
 import database
@@ -364,6 +365,39 @@ def gerar_pdf_relatorio(escola, ivs, crimes, evasao, score, rec_titulo, rec_text
         pdf_fallback.cell(w=0, h=10, text=f"Score: {score:.0f} pts", ln=True)
         return bytes(pdf_fallback.output())
 
+@st.cache_data
+def treinar_modelo_rf_convivencia():
+    np.random.seed(42)
+    n_amostras = 300
+    
+    data = {
+        'id_amostra': range(1, n_amostras + 1),
+        'faltas_consecutivas': np.random.randint(0, 10, size=n_amostras),
+        'queda_notas_pct': np.random.uniform(0, 50, size=n_amostras),
+        'historico_conflitos': np.random.randint(0, 5, size=n_amostras),
+        'acesso_rede_suspeito': np.random.choice([0, 1], size=n_amostras, p=[0.85, 0.15]),
+        'risco_entorno_bairro': np.random.uniform(1, 10, size=n_amostras)
+    }
+    df_rf = pd.DataFrame(data)
+    df_rf['precisa_intervencao'] = ((df_rf['faltas_consecutivas'] > 5) | 
+                                    (df_rf['queda_notas_pct'] > 30) | 
+                                    (df_rf['acesso_rede_suspeito'] == 1) |
+                                    ((df_rf['historico_conflitos'] >= 2) & (df_rf['risco_entorno_bairro'] > 7))).astype(int)
+    
+    X = df_rf[['faltas_consecutivas', 'queda_notas_pct', 'historico_conflitos', 'acesso_rede_suspeito', 'risco_entorno_bairro']]
+    y = df_rf['precisa_intervencao']
+    
+    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf.fit(X, y)
+    
+    df_rf['score_risco_pct'] = rf.predict_proba(X)[:, 1] * 100
+    
+    features = ['Faltas Consecutivas', 'Queda de Notas (%)', 'Histórico Conflitos', 'Logs Wi-Fi Suspeitos', 'Risco Entorno Bairro']
+    importances = rf.feature_importances_
+    df_imp = pd.DataFrame({'Feature': features, 'Importancia': importances}).sort_values('Importancia', ascending=True)
+    
+    return rf, df_rf, df_imp
+
 # ==============================================================================
 # PERFIL: GESTOR PÚBLICO
 # ==============================================================================
@@ -375,8 +409,8 @@ if perfil == 'Gestor Público':
     </div>
     """, unsafe_allow_html=True)
 
-    tab_dash, tab_prio, tab_ia, tab_teoria = st.tabs([
-        "📊 Painel & Simulador", "🎯 Matriz de Priorização", "🤖 Copiloto IA", "📖 Base Teórica"
+    tab_dash, tab_prio, tab_clima, tab_ia, tab_teoria = st.tabs([
+        "📊 Painel & Simulador", "🎯 Matriz de Priorização", "🛡️ Clima & Convivência (IA)", "🤖 Copiloto IA", "📖 Base Teórica"
     ])
 
     # ── ABA 1: DASHBOARD E SIMULADOR ──
@@ -540,7 +574,88 @@ if perfil == 'Gestor Público':
             tabela_apresentacao['Score'] = tabela_apresentacao['Score'].round(0).astype(int)
             st.dataframe(tabela_apresentacao, use_container_width=True, hide_index=True)
 
-    # ── ABA 3: COPILOTO IA ──
+    # ── ABA 3: CLIMA & CONVIVÊNCIA ESCOLAR (IA) ──
+    with tab_clima:
+        st.markdown("""
+        <div>
+            <h3 style="margin:0; font-size:1.35rem; color:#0f172a; font-weight:800;">Monitoramento de Convivência & Clima Escolar</h3>
+            <p style="color:#64748b; font-size:0.9rem;">Detecção antecipada de vulnerabilidades, conflitos e prevenção de evasão via IA (Random Forest).</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _, df_rf_sim, _ = treinar_modelo_rf_convivencia()
+        
+        c_clima1, c_clima2, c_clima3 = st.columns([4, 4, 4])
+        
+        taxa_critica = (df_rf_sim['score_risco_pct'] > 75).mean() * 100
+        taxa_moderada = ((df_rf_sim['score_risco_pct'] >= 40) & (df_rf_sim['score_risco_pct'] <= 75)).mean() * 100
+        clima_geral = 100 - (df_rf_sim['score_risco_pct'].mean() * 0.8)
+        
+        with c_clima1:
+            fig_therm = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = clima_geral,
+                domain = {'x': [0, 1], 'y': [0, 1]},
+                title = {'text': "Índice de Clima Escolar Médio", 'font': {'size': 13}},
+                gauge = {
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "#059669"},
+                    'steps': [
+                        {'range': [0, 50], 'color': '#fee2e2'},
+                        {'range': [50, 75], 'color': '#ffedd5'},
+                        {'range': [75, 100], 'color': '#d1fae5'}
+                    ]
+                }
+            ))
+            fig_therm.update_layout(height=180, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_therm, use_container_width=True)
+            
+        with c_clima2:
+            st.metric("Alerta Crítico (> 75% Risco)", f"{taxa_critica:.1f}% das turmas", delta="Atenção imediata", delta_color="inverse")
+            st.metric("Alerta Moderado (40-75%)", f"{taxa_moderada:.1f}% das turmas", delta="Mediação preventiva")
+
+        with c_clima3:
+            df_rf_sim['Faixa'] = pd.cut(
+                df_rf_sim['score_risco_pct'],
+                bins=[-np.inf, 40, 75, np.inf],
+                labels=['Baixo Risco', 'Moderado', 'Crítico']
+            )
+            fig_donut = px.pie(
+                df_rf_sim,
+                names='Faixa',
+                title="Distribuição dos Níveis de Vulnerabilidade",
+                color='Faixa',
+                color_discrete_map={'Crítico': '#dc2626', 'Moderado': '#ea580c', 'Baixo Risco': '#059669'},
+                hole=0.5
+            )
+            fig_donut.update_layout(height=180, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
+            st.plotly_chart(fig_donut, use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### 🚨 Painel de Alertas Pró-Ativos da Coordenação")
+        
+        col_alt1, col_alt2 = st.columns(2)
+        with col_alt1:
+            st.markdown("""
+            <div style="background:#ffffff; border:1px solid #fee2e2; border-left:5px solid #dc2626; padding:14px 18px; border-radius:10px; margin-bottom:10px;">
+                <strong style="color:#dc2626;"><i class="fas fa-triangle-exclamation"></i> Risco Crítico (Score > 75%)</strong>
+                <p style="margin:4px 0 0 0; font-size:0.875rem; color:#475569;">
+                    <strong>Diretriz Recomendada:</strong> Acionamento de intervenção psicossocial direta conjunta (Psicólogo + Assistente Social) e reforço de ronda escolar nos portões em horários de troca de turno.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col_alt2:
+            st.markdown("""
+            <div style="background:#ffffff; border:1px solid #ffedd5; border-left:5px solid #ea580c; padding:14px 18px; border-radius:10px; margin-bottom:10px;">
+                <strong style="color:#ea580c;"><i class="fas fa-circle-exclamation"></i> Risco Moderado (Score 40% a 75%)</strong>
+                <p style="margin:4px 0 0 0; font-size:0.875rem; color:#475569;">
+                    <strong>Diretriz Recomendada:</strong> Inclusão em círculos de justiça restaurativa, monitoria acadêmica para recuperação de notas e palestras sobre cyberbullying e segurança digital.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── ABA 4: COPILOTO IA ──
     with tab_ia:
         st.header("Copiloto EduSeg — Consultor IA Baseado em Evidências")
         st.caption("Motor Llama 3.3 (Groq) + Pesquisa em Tempo Real (DuckDuckGo) · Custo Zero")
@@ -578,25 +693,32 @@ if perfil == 'Gestor Público':
         else:
             st.info("👈 Defina sua chave Groq nos Secrets da aplicação ou no painel lateral.")
 
-    # ── ABA 4: QUADRO TEÓRICO ──
+    # ── ABA 5: QUADRO TEÓRICO AMPLIADO ──
     with tab_teoria:
         st.markdown("""
         <div class="teoria-card">
-            <h3>1. Taxonomia dos Sistemas de Informação (Perottoni et al., 2001)</h3>
+            <h3>🛡️ 1. Sistemas de Apoio à Decisão em Segurança Pública e Corporativa</h3>
             <ul style="color: #475569; font-size: 0.9rem; line-height: 1.6;">
-                <li><strong>SPT (Processamento de Transações):</strong> Registra o operacional diário (ex: frequências de catraca, boletins de ocorrência brutos).</li>
-                <li><strong>SIG (Informações Gerenciais):</strong> Relatórios descritivos consolidados para acompanhamento tático.</li>
-                <li><strong>SAD (Apoio à Decisão - Este Sistema):</strong> Focado em decisões <em>semiestruturadas</em>, modelando cenários hipotéticos (simulação orçamentária) e gerando recomendações baseadas em inferência analítica.</li>
+                <li><strong>Predição de Manchas Criminais (Policiamento Preditivo):</strong> Algoritmos que processam histórico georreferenciado de delitos (tipo, horário, local, condições do entorno) para antecipar onde viaturas devem ser posicionadas preventivamente.</li>
+                <li><strong>Análise de Risco de Fraudes & Anomalias:</strong> Monitoramento contínuo cruzando perfis comportamentais para acionar alertas de investigação precoce.</li>
+                <li><strong>Gestão de Crises e Grandes Eventos:</strong> Simulação preditiva para direcionamento de equipes de resgate, fechamento de vias e blindagem perimetral.</li>
             </ul>
         </div>
         
         <div class="teoria-card">
-            <h3>2. As 4 Funções Analíticas de KDD no SAD-EduSeg</h3>
+            <h3>📚 2. Sistemas de Apoio à Decisão na Gestão Educacional</h3>
             <ul style="color: #475569; font-size: 0.9rem; line-height: 1.6;">
-                <li><strong>Sumarização:</strong> Consolidação de métricas executivas agregadas de 10 escolas e seus entornos.</li>
-                <li><strong>Agrupamento (Clustering K-Means):</strong> Segmentação não-supervisionada identificando aglomerados de vulnerabilidade equivalente.</li>
-                <li><strong>Regressão Linear:</strong> Modelagem preditiva que quantifica a sensibilidade da evasão escolar em relação ao aumento de crimes.</li>
-                <li><strong>Associação (Apriori):</strong> Extração de padrões frequentes e regras condicionais (Se [A, B] então [C]).</li>
+                <li><strong>Prevenção de Evasão Escolar:</strong> Cruzamento de assiduidade, variação de rendimento bimestral, histórico disciplinar e vulnerabilidade local para emitir alertas preditivos antes do abandono escolar.</li>
+                <li><strong>Plataformas de Aprendizagem Adaptativa:</strong> Ajuste em tempo real da trilha pedagógica com base no engajamento individual do estudante.</li>
+                <li><strong>Planejamento e Alocação de Recursos Públicos:</strong> Otimização da construção de novas unidades escolares, expansão de tempo integral e rotas de transporte escolar.</li>
+            </ul>
+        </div>
+
+        <div class="teoria-card">
+            <h3>💡 3. Inteligência Artificial Explicável (XAI) & Algoritmos de Ensemble (Random Forest)</h3>
+            <ul style="color: #475569; font-size: 0.9rem; line-height: 1.6;">
+                <li><strong>O Princípio da Explicabilidade (XAI):</strong> No setor público e na educação, não basta o modelo classificar uma situação como de risco; ele precisa justificar as variáveis determinantes (ex: 85% de risco decorrente do aumento de faltas somado ao histórico de conflitos e vulnerabilidade territorial).</li>
+                <li><strong>Random Forest (Floresta Aleatória):</strong> Algoritmo de aprendizado supervisionado baseado no consenso de múltiplas árvores de decisão. É amplamente reconhecido no meio acadêmico por mitigar o sobreajuste (overfitting) e oferecer mensuração precisa da importância relativa de cada feature.</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -614,8 +736,8 @@ elif perfil == 'Analista KDD':
     
     registrar_log(usuario_atual, perfil, "ACESSO_KDD", "vw_alerta_vulnerabilidade")
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab_ia = st.tabs([
-        "📍 Agrupamento (K-Means)", "📈 Regressão Linear", "🔗 Associação (Apriori)", "🔥 Correlação", "📊 Delitos por Bairro", "🧠 Grafo 3D", "🤖 Copiloto IA"
+    tab1, tab2, tab3, tab4, tab5, tab6, tab_rf, tab_ia = st.tabs([
+        "📍 Agrupamento (K-Means)", "📈 Regressão Linear", "🔗 Associação (Apriori)", "🔥 Correlação", "📊 Delitos por Bairro", "🧠 Grafo 3D", "🌲 Random Forest & XAI", "🤖 Copiloto IA"
     ])
 
     # ── AGRUPAMENTO ──
@@ -795,6 +917,55 @@ elif perfil == 'Analista KDD':
             components.html(html_content, height=600, scrolling=False)
         except Exception:
             st.error("Componente do grafo 3D em renderização.")
+
+    # ── RANDOM FOREST & XAI ──
+    with tab_rf:
+        st.markdown("### Classificação Preditiva de Vulnerabilidade & IA Explicável (XAI)")
+        st.caption("Algoritmo de Ensemble (Random Forest Classifier) com análise da importância das variáveis na decisão.")
+
+        rf_mod, df_rf_amostra, df_imp = treinar_modelo_rf_convivencia()
+
+        col_rf1, col_rf2 = st.columns([6, 6])
+
+        with col_rf1:
+            st.markdown("#### 🔍 Explicabilidade da IA (Feature Importance - XAI)")
+            fig_imp = px.bar(
+                df_imp,
+                x='Importancia',
+                y='Feature',
+                orientation='h',
+                title="Peso Relativo de Cada Fator no Score de Risco",
+                color='Importancia',
+                color_continuous_scale='Tealgrn'
+            )
+            fig_imp.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(248,250,252,0.8)')
+            st.plotly_chart(fig_imp, use_container_width=True)
+            st.caption("A IA atribui maior relevância a faltas súbitas e histórico de conflitos na predição do risco de evasão e violência.")
+
+        with col_rf2:
+            st.markdown("#### 🧪 Simulador de Inferência de Perfil Anônimo")
+            with st.container():
+                s_faltas = st.slider("Faltas Consecutivas (Última quinzena)", 0, 15, 6)
+                s_queda = st.slider("Queda de Rendimento / Notas (%)", 0, 80, 35)
+                s_conflitos = st.slider("Ocorrências / Advertências Disciplinares", 0, 6, 2)
+                s_rede = st.selectbox("Tentativa de Acesso a Conteúdo Suspeito na Rede Wi-Fi?", ["Não (0)", "Sim (1)"])
+                s_rede_bin = 1 if "Sim" in s_rede else 0
+                s_bairro = st.slider("Índice de Risco do Bairro / Entorno (1 a 10)", 1.0, 10.0, 7.5)
+
+                input_perfil = pd.DataFrame([[s_faltas, s_queda, s_conflitos, s_rede_bin, s_bairro]],
+                                            columns=['faltas_consecutivas', 'queda_notas_pct', 'historico_conflitos', 'acesso_rede_suspeito', 'risco_entorno_bairro'])
+                
+                prob_risco = rf_mod.predict_proba(input_perfil)[0, 1] * 100
+
+                if prob_risco >= 75:
+                    st.error(f"🚨 **Probabilidade Preditiva de Risco: {prob_risco:.1f}% (CRÍTICO)**")
+                    st.markdown("**Decisão Automatizada (XAI):** Acionar intervenção direta do psicólogo escolar e assistente social imediatamente.")
+                elif prob_risco >= 40:
+                    st.warning(f"⚠️ **Probabilidade Preditiva de Risco: {prob_risco:.1f}% (MODERADO)**")
+                    st.markdown("**Decisão Automatizada (XAI):** Encaminhar para monitoria de recuperação acadêmica e mediação de conflitos.")
+                else:
+                    st.success(f"✅ **Probabilidade Preditiva de Risco: {prob_risco:.1f}% (BAIXO)**")
+                    st.markdown("**Decisão Automatizada (XAI):** Situação estável. Manter acompanhamento de rotina.")
 
     # ── COPILOTO IA (Analista) ──
     with tab_ia:
