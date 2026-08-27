@@ -8,3 +8,4 @@ seaborn
 groq
 duckduckgo-search
 fpdf2
+plotly

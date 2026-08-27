@@ -76,12 +76,12 @@ Mensagem do usuário: {mensagem}
 class AgenteEduSeg:
     """Agente multi-fases com busca web gratuita para o SAD-EduSeg."""
 
-    def __init__(self, api_key: str, model: str = "llama3-8b-8192"):
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.api_key = api_key
         self.model = model
 
     def _chamar_groq(self, system_prompt: str, messages: list) -> str:
-        """Chama a API Groq diretamente (sem LangChain, zero custo adicional)."""
+        """Chama a API Groq diretamente (com fallback para modelos modernos)."""
         from groq import Groq
         client = Groq(api_key=self.api_key)
 
@@ -89,13 +89,21 @@ class AgenteEduSeg:
         for m in messages:
             msgs_api.append({"role": m["role"], "content": m["content"]})
 
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=msgs_api,
-            temperature=0.7,
-            max_tokens=2048,
-        )
-        return response.choices[0].message.content
+        modelos = [self.model, "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+        ultimo_erro = None
+        for mod in modelos:
+            try:
+                response = client.chat.completions.create(
+                    model=mod,
+                    messages=msgs_api,
+                    temperature=0.7,
+                    max_tokens=2048,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                ultimo_erro = e
+                continue
+        raise ultimo_erro
 
     def _detectar_busca(self, mensagem: str) -> dict:
         """Usa o LLM para decidir se precisa buscar na web."""
@@ -105,7 +113,7 @@ class AgenteEduSeg:
 
             prompt = DETECT_SEARCH_PROMPT.format(mensagem=mensagem)
             response = client.chat.completions.create(
-                model=self.model,
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=256,
